@@ -13,6 +13,7 @@ find_package(rclcpp_lifecycle REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(canopen_core REQUIRED)
 find_package(canopen_interfaces REQUIRED)
+find_package(canopen_inventus_interfaces REQUIRED)
 find_package(canopen_base_driver REQUIRED)
 find_package(canopen_proxy_driver REQUIRED)
 find_package(lely_core_libraries REQUIRED)
@@ -28,6 +29,7 @@ rclcpp_lifecycle
 lifecycle_msgs
 canopen_core
 canopen_interfaces
+canopen_inventus_interfaces
 canopen_base_driver
 canopen_proxy_driver
 lely_core_libraries

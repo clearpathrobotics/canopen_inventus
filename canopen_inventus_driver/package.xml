@@ -9,9 +9,11 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
+  <depend>inventus_bmu</depend>
   <depend>canopen</depend>
   <depend>canopen_core</depend>
   <depend>canopen_interfaces</depend>
+  <depend>canopen_inventus_interfaces</depend>
   <depend>canopen_base_driver</depend>
   <depend>canopen_proxy_driver</depend>
   <depend>lely_core_libraries</depend>
