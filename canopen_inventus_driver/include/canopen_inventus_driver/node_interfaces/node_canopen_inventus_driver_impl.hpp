@@ -6,18 +6,36 @@
 using namespace ros2_canopen::node_interfaces;
 using namespace std::placeholders;
 
+/**
+ * @brief Constructor for templated Node Canopen Inventus Driver<NODETYPE>:: Node Canopen Inventus Driver object
+ *
+ * @tparam NODETYPE
+ * @param node
+ */
 template <class NODETYPE>
 NodeCanopenInventusDriver<NODETYPE>::NodeCanopenInventusDriver(NODETYPE * node)
 : ros2_canopen::node_interfaces::NodeCanopenProxyDriver<NODETYPE>(node)
 {
 }
 
+/**
+ * @brief Templated initialization, not utilized.
+ *
+ * @tparam NODETYPE
+ * @param called_from_base
+ */
 template <class NODETYPE>
 void NodeCanopenInventusDriver<NODETYPE>::init(bool called_from_base)
 {
   RCLCPP_ERROR(this->node_->get_logger(), "Not init implemented.");
 }
 
+/**
+ * @brief Initialization of publishers for rclcpp::Node
+ *
+ * @tparam
+ * @param called_from_base
+ */
 template <>
 void NodeCanopenInventusDriver<rclcpp::Node>::init(bool called_from_base)
 {
@@ -29,6 +47,12 @@ void NodeCanopenInventusDriver<rclcpp::Node>::init(bool called_from_base)
   publish_battery_status_ = this->node_->create_publisher<canopen_inventus_interfaces::msg::Status>("~/battery_status", 1);
 }
 
+/**
+ * @brief Initialization of publishers for rclcpp_lifecycle::LifecycleNode
+ *
+ * @tparam
+ * @param called_from_base
+ */
 template <>
 void NodeCanopenInventusDriver<rclcpp_lifecycle::LifecycleNode>::init(bool called_from_base)
 {
@@ -40,6 +64,13 @@ void NodeCanopenInventusDriver<rclcpp_lifecycle::LifecycleNode>::init(bool calle
   publish_battery_status_ = this->node_->create_publisher<canopen_inventus_interfaces::msg::Status>("~/battery_status", 1);
 }
 
+/**
+ * @brief Configuration of parameters and registration of required publishers
+ * for class type rclcpp::Node
+ *
+ * @tparam
+ * @param called_from_base
+ */
 template <>
 void NodeCanopenInventusDriver<rclcpp::Node>::configure(bool called_from_base)
 {
@@ -75,6 +106,13 @@ void NodeCanopenInventusDriver<rclcpp::Node>::configure(bool called_from_base)
   }
 }
 
+/**
+ * @brief Configuration of parameters and registration of required publishers
+ * for class type rclcpp_lifecycle::LifecycleNode
+ *
+ * @tparam
+ * @param called_from_base
+ */
 template <>
 void NodeCanopenInventusDriver<rclcpp_lifecycle::LifecycleNode>::configure(bool called_from_base)
 {
@@ -110,6 +148,12 @@ void NodeCanopenInventusDriver<rclcpp_lifecycle::LifecycleNode>::configure(bool 
   }
 }
 
+/**
+ * @brief Activation function.
+ *
+ * @tparam NODETYPE
+ * @param called_from_base
+ */
 template <class NODETYPE>
 void NodeCanopenInventusDriver<NODETYPE>::activate(bool called_from_base)
 {
@@ -117,6 +161,12 @@ void NodeCanopenInventusDriver<NODETYPE>::activate(bool called_from_base)
   // Activate controller
 }
 
+/**
+ * @brief Deactivation function. Stop timer.
+ *
+ * @tparam NODETYPE
+ * @param called_from_base
+ */
 template <class NODETYPE>
 void NodeCanopenInventusDriver<NODETYPE>::deactivate(bool called_from_base)
 {
@@ -124,6 +174,11 @@ void NodeCanopenInventusDriver<NODETYPE>::deactivate(bool called_from_base)
   timer_->cancel();
 }
 
+/**
+ * @brief Timer callback where SDO and PDO reads are executed.
+ *
+ * @tparam NODETYPE
+ */
 template <class NODETYPE>
 void NodeCanopenInventusDriver<NODETYPE>::poll_timer_callback()
 {
@@ -145,6 +200,11 @@ void NodeCanopenInventusDriver<NODETYPE>::poll_timer_callback()
   }
 }
 
+/**
+ * @brief Publish state and status messages.
+ *
+ * @tparam NODETYPE
+ */
 template <class NODETYPE>
 void NodeCanopenInventusDriver<NODETYPE>::publish()
 {
@@ -178,6 +238,11 @@ void NodeCanopenInventusDriver<NODETYPE>::publish()
 
 }
 
+/**
+ * @brief Register node with the master node.
+ *
+ * @tparam NODETYPE
+ */
 template <class NODETYPE>
 void NodeCanopenInventusDriver<NODETYPE>::add_to_master()
 {
