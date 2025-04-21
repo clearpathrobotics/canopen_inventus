@@ -96,6 +96,16 @@ void NodeCanopenInventusDriver<rclcpp::Node>::configure(bool called_from_base)
     RCLCPP_WARN(this->node_->get_logger(), "Battery 'location' not defined. Defaulting to 'unknown'.");
     location_ = "unknown";
   }
+  try
+  {
+    publish_ms_ = this->config_["publish_ms"].as<uint32_t>();
+    RCLCPP_INFO(this->node_->get_logger(), "Publish loop timer period 'publish_ms' set to '%d'", publish_ms_);
+  }
+  catch(...)
+  {
+    RCLCPP_WARN(this->node_->get_logger(), "Publish loop timer period 'publish_ms' not set, defaulting to 1000 ms");
+    publish_ms_ = 1000;
+  }
   // Create extra publishers for virtual battery
   if (is_master_)
   {
@@ -138,6 +148,16 @@ void NodeCanopenInventusDriver<rclcpp_lifecycle::LifecycleNode>::configure(bool 
     RCLCPP_WARN(this->node_->get_logger(), "Battery 'location' not defined. Defaulting to 'unknown'.");
     location_ = "unknown";
   }
+  try
+  {
+    publish_ms_ = this->config_["publish_ms"].as<uint32_t>();
+    RCLCPP_INFO(this->node_->get_logger(), "Publish loop timer period 'publish_ms' set to '%d'", publish_ms_);
+  }
+  catch(...)
+  {
+    RCLCPP_WARN(this->node_->get_logger(), "Publish loop timer period 'publish_ms' not set, defaulting to 1000 ms");
+    publish_ms_ = 1000;
+  }
   // Create extra publishers for virtual battery
   if (is_master_)
   {
@@ -149,7 +169,7 @@ void NodeCanopenInventusDriver<rclcpp_lifecycle::LifecycleNode>::configure(bool 
 }
 
 /**
- * @brief Activation function.
+ * @brief Activation function. Start timers.
  *
  * @tparam NODETYPE
  * @param called_from_base
@@ -159,6 +179,9 @@ void NodeCanopenInventusDriver<NODETYPE>::activate(bool called_from_base)
 {
   NodeCanopenProxyDriver<NODETYPE>::activate(false);
   // Activate controller
+  publish_timer_ = this->node_->create_wall_timer(
+    std::chrono::milliseconds(publish_ms_),
+    std::bind(&NodeCanopenInventusDriver<NODETYPE>::publish_timer_callback, this), this->timer_cbg_);
 }
 
 /**
@@ -172,6 +195,7 @@ void NodeCanopenInventusDriver<NODETYPE>::deactivate(bool called_from_base)
 {
   NodeCanopenProxyDriver<NODETYPE>::deactivate(false);
   timer_->cancel();
+  publish_timer_->cancel();
 }
 
 /**
@@ -194,7 +218,19 @@ void NodeCanopenInventusDriver<NODETYPE>::poll_timer_callback()
     {
       battery_->readAllPDO();
     }
+  }
+}
 
+/**
+ * @brief Timer callback where topics are published.
+ *
+ * @tparam NODETYPE
+ */
+template <class NODETYPE>
+void NodeCanopenInventusDriver<NODETYPE>::publish_timer_callback()
+{
+  if (this->activated_.load())
+  {
     // Publish
     publish();
   }

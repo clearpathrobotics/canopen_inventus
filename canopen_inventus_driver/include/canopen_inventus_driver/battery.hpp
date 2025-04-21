@@ -1,6 +1,8 @@
 #ifndef BATTERY_HPP
 #define BATTERY_HPP
 
+#include <lely/co/type.hpp>
+
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/battery_state.hpp"
 #include "canopen_inventus_interfaces/msg/status.hpp"
@@ -11,13 +13,26 @@
 namespace ros2_canopen
 {
 
-template <typename T>
-struct COTypedData
+struct COIndex
 {
 public:
   uint16_t index_;
   uint8_t subindex_;
+  // uint16_t type_;
+  // uint32_t unique_index_;
+};
+
+template <typename T>
+struct COTypedData: COIndex
+{
+public:
   T data_;
+  bool available_ = false;
+};
+
+constexpr uint32_t getUniqueIndex(ros2_canopen::COIndex index)
+{
+  return index.index_ << 8 | index.subindex_;
 };
 
 class Battery
@@ -98,6 +113,12 @@ public:
   ros2_canopen::COTypedData<int16_t> pdo_temperature_ = {0x485A, 0x00, 0U};
   ros2_canopen::COTypedData<int16_t> pdo_temperature_all_ = {0x486A, 0x00, 0U};
 
+  // Messages
+  sensor_msgs::msg::BatteryState battery_state_;
+  sensor_msgs::msg::BatteryState virtual_battery_state_;
+  canopen_inventus_interfaces::msg::Status battery_status_;
+  canopen_inventus_interfaces::msg::VirtualBattery virtual_battery_status_;
+
   // Methods
   sensor_msgs::msg::BatteryState getBatteryState();
   canopen_inventus_interfaces::msg::Status getBatteryStatus();
@@ -126,6 +147,8 @@ private:
   std::shared_ptr<LelyDriverBridge> driver_;
   std::mutex &sdo_mutex;
   bool read_static_sdo_;
+
+  uint32_t index_;
 };
 
 } // namespace ros2_canopen

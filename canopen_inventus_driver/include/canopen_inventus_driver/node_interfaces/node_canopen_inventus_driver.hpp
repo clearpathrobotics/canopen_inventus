@@ -53,11 +53,16 @@ protected:
    publish_virtual_battery_state_;
    rclcpp::Publisher<canopen_inventus_interfaces::msg::VirtualBattery>::SharedPtr publish_virtual_battery_status_;
 
+   rclcpp::TimerBase::SharedPtr publish_timer_;
+
    void publish();
    virtual void poll_timer_callback() override;
 
+   void publish_timer_callback();
+
    bool is_master_;
    std::string location_;
+   uint32_t publish_ms_;
 };
 } // namespace canopen_inventus_driver
 } // namespace node_interfaces
