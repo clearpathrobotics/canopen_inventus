@@ -3,52 +3,108 @@
 using namespace ros2_canopen;
 
 /**
- * @brief Read SDO using the typed COData structure.
+ * @brief Read SDO using either typed or COData read from the LelyBridge
  *
- * @tparam T : Type of data in SDO index
- * @param data : COTypedData
+ * @param index
  * @return true
  * @return false
  */
-template <typename T>
-bool Battery::readTypedSDO(ros2_canopen::COTypedData<T> & data)
+bool Battery::readSDO(COIndex index)
 {
   // Only allow one SDO request concurrently
   std::scoped_lock<std::mutex> lk(this->sdo_mutex);
-  // Send read request
 
-  auto f = this->driver_->template async_sdo_read_typed<T>(data.index_, data.subindex_);
-  // Wait for response
-  f.wait();
-  // Process response
-  try
+  // Strings use typed read.
+  if (index.type_ == CO_DEFTYPE_VISIBLE_STRING)
   {
-    data.data_ = f.get();
+    auto f = this->driver_->template async_sdo_read_typed<std::string>(index.index_, index.subindex_);
+    f.wait();
+
+    try
+    {
+      std::string data = f.get();
+      setStringData(index, data);
+    }
+    catch (std::exception & e)
+    {
+      RCLCPP_ERROR(logger_, e.what());
+      clearAvailable(index);
+      return false;
+    }
   }
-  catch (std::exception & e)
+  // Integers use COData read.
+  else
   {
-    return false;
+    COData data = {index.index_, index.subindex_, 0U};
+    auto f = this->driver_->async_sdo_read(data);
+    try
+    {
+      data.data_ = f.get().data_;
+      switch(index.type_)
+      {
+        case CO_DEFTYPE_INTEGER16:
+          setData<int16_t>(index, data.data_);
+          break;
+        case CO_DEFTYPE_UNSIGNED8:
+          setData<uint8_t>(index, data.data_);
+          break;
+        case CO_DEFTYPE_UNSIGNED16:
+          setData<uint16_t>(index, data.data_);
+          break;
+        case CO_DEFTYPE_UNSIGNED32:
+          setData<uint32_t>(index, data.data_);
+          break;
+        default:
+          RCLCPP_ERROR(logger_, "readSDO: type not known.");
+          return false;
+      }
+    }
+    catch (std::exception & e)
+    {
+      RCLCPP_ERROR(logger_, e.what());
+      clearAvailable(index);
+      return false;
+    }
   }
   return true;
 }
 
 /**
- * @brief Read PDO using the typed COData structure.
+ * @brief Read PDO and store based on type.
  *
- * @tparam T
- * @param data
+ * @param index
  * @return true
  * @return false
  */
-template <typename T>
-bool Battery::readTypedPDO(ros2_canopen::COTypedData<T> & data)
+bool Battery::readPDO(COIndex index)
 {
   try
   {
-    data.data_ = this->driver_->template universal_get_value<T>(data.index_, data.subindex_);
+    switch(index.type_)
+    {
+      case CO_DEFTYPE_INTEGER16:
+        setData(index, this->driver_->template universal_get_value<int16_t>(index.index_, index.subindex_));
+        break;
+      case CO_DEFTYPE_UNSIGNED8:
+        setData(index, this->driver_->template universal_get_value<uint8_t>(index.index_, index.subindex_));
+        break;
+      case CO_DEFTYPE_UNSIGNED16:
+        setData(index, this->driver_->template universal_get_value<uint16_t>(index.index_, index.subindex_));
+        break;
+      case CO_DEFTYPE_UNSIGNED32:
+        setData(index, this->driver_->template universal_get_value<uint32_t>(index.index_, index.subindex_));
+        break;
+      case CO_DEFTYPE_VISIBLE_STRING:
+        setStringData(index, this->driver_->template universal_get_value<std::string>(index.index_, index.subindex_));
+        break;
+      default:
+        return false;
+    }
   }
   catch (std::exception & e)
   {
+    RCLCPP_ERROR(logger_, e.what());
+    clearAvailable(index);
     return false;
   }
   return true;
@@ -64,132 +120,32 @@ void Battery::readAllSDO()
   // Initialization: Read SDO that only need to be read once.
   if (read_static_sdo_)
   {
-    // Hardware Version
-    if (!sdo_hardware_version_.available_)
+    for(int i = 0; i < 6; i++)
     {
-      sdo_hardware_version_.available_ = readTypedSDO<std::string>(sdo_hardware_version_);
-      return;
+      if (!isAvailable(sdo_static_list_[i]))
+      {
+        readSDO(sdo_static_list_[i]);
+        return;
+      }
     }
-
-    // Software Version
-    if (!sdo_software_version_.available_)
-    {
-      sdo_software_version_.available_ = readTypedSDO<std::string>(sdo_software_version_);
-      return;
-    }
-
-    // Firmware Version
-    if (!sdo_firmware_version_.available_)
-    {
-      sdo_firmware_version_.available_ = readTypedSDO<std::string>(sdo_firmware_version_);
-      return;
-    }
-
-    // Serial Number
-    if (!sdo_serial_number_.available_)
-    {
-      sdo_serial_number_.available_ = readTypedSDO<uint16_t>(sdo_serial_number_);
-      return;
-    }
-
-    // Full Charge Capacity
-    if (!sdo_fcc_.available_)
-    {
-      sdo_fcc_.available_ = readTypedSDO<uint16_t>(sdo_fcc_);
-      return;
-    }
-
-    // Design Capacity
-    if (!sdo_design_capacity_.available_)
-    {
-      sdo_design_capacity_.available_ = readTypedSDO<uint16_t>(sdo_design_capacity_);
-      return;
-    }
-
     // Done
     read_static_sdo_ = false;
   }
 
-  // State of Charge
-  if (!sdo_state_of_charge_.available_)
+  int count = 0;
+  for(int i = 0; i < 18; i++)
   {
-    sdo_state_of_charge_.available_ = readTypedSDO<uint8_t>(sdo_state_of_charge_);
-    return;
+    if (!isAvailable(sdo_dynamic_list_[i]))
+    {
+      readSDO(sdo_dynamic_list_[i]);
+      count++;
+      if(count == 1)
+      {
+        return;
+      }
+    }
   }
-
-  // Operational Mode
-  if (!sdo_operational_mode_.available_)
-  {
-    sdo_operational_mode_.available_ = readTypedSDO<uint16_t>(sdo_operational_mode_);
-    return;
-  }
-
-  // Charge Fault
-  if (!sdo_charge_fault_.available_)
-  {
-    sdo_charge_fault_.available_ = readTypedSDO<uint16_t>(sdo_charge_fault_);
-    return;
-  }
-
-  // Discharge Fault
-  if (!sdo_discharge_fault_.available_)
-  {
-    sdo_discharge_fault_.available_ = readTypedSDO<uint16_t>(sdo_discharge_fault_);
-    return;
-  }
-
-  // Min. Cell Temperature
-  if (!sdo_min_cell_temperature_.available_)
-  {
-    sdo_min_cell_temperature_.available_ = readTypedSDO<uint16_t>(sdo_min_cell_temperature_);
-    return;
-  }
-
-  // Max. Cell Temperature
-  if (!sdo_min_cell_temperature_.available_)
-  {
-    sdo_min_cell_temperature_.available_ = readTypedSDO<uint16_t>(sdo_min_cell_temperature_);
-    return;
-  }
-
-
-
-  // SDO: Read Once
-  // if (read_static_sdo_)
-  // {
-    // Strings
-    // readTypedSDO<std::string>(sdo_hardware_version_);
-    // readTypedSDO<std::string>(sdo_software_version_);
-    // readTypedSDO<std::string>(sdo_firmware_version_);
-    // Unsigned 16 Bit
-    // readTypedSDO<uint16_t>(sdo_serial_number_);
-    // readTypedSDO<uint16_t>(sdo_fcc_);
-    // readTypedSDO<uint16_t>(sdo_design_capacity_);
-
-  //   read_static_sdo_ = false;
-  // }
-
-  // SDO: Read Unsigned 8 Bit
-  // readTypedSDO<uint8_t>(sdo_state_of_charge_);
-
-  // // SDO: Read Unsigned 16 Bit
-  // readTypedSDO<uint16_t>(sdo_operational_mode_);
-  // readTypedSDO<uint16_t>(sdo_charge_fault_);
-  // readTypedSDO<uint16_t>(sdo_discharge_fault_);
-  // readTypedSDO<uint16_t>(sdo_min_cell_temperature_);
-  // readTypedSDO<uint16_t>(sdo_max_cell_temperature_);
-  // readTypedSDO<uint16_t>(sdo_rem_capacity_);
-  // for (int i = 0; i < 8; i++)
-  // {
-  //   readTypedSDO<uint16_t>(sdo_cell_voltages_[i]);
-  // }
-
-  // // SDO: Read Unsigned 32 Bit
-  // readTypedSDO<uint32_t>(sdo_battery_voltage_);
-
-  // // SDO: Read Signed 16 Bit
-  // readTypedSDO<int16_t>(sdo_current_);
-  // readTypedSDO<int16_t>(sdo_temperature_);
+  clearAllAvailable();
 }
 
 /**
@@ -198,38 +154,10 @@ void Battery::readAllSDO()
  */
 void Battery::readAllPDO()
 {
-  // PDO: Read Unsigned 8 Bit
-  readTypedPDO<uint8_t>(pdo_number_of_batteries_);
-  readTypedPDO<uint8_t>(pdo_charge_cut_off_current_);
-  readTypedPDO<uint8_t>(pdo_fully_charged_);
-  readTypedPDO<uint8_t>(pdo_soh_);
-  readTypedPDO<uint8_t>(pdo_number_of_batteries_fault_);
-  readTypedPDO<uint8_t>(pdo_number_of_active_batteries_);
-  readTypedPDO<uint8_t>(pdo_operational_mode_);
-  readTypedPDO<uint8_t>(pdo_soc_all_);
-  readTypedPDO<uint8_t>(pdo_master_node_id_);
-
-  // PDO: Read Unsigned 16 Bit
-  readTypedPDO<uint16_t>(pdo_current_stored_);
-  readTypedPDO<uint16_t>(pdo_remaining_run_time_);
-  readTypedPDO<uint16_t>(pdo_remaining_charge_time_);
-  readTypedPDO<uint16_t>(pdo_pack_voltage_);
-  readTypedPDO<uint16_t>(pdo_discharge_current_limit_);
-  readTypedPDO<uint16_t>(pdo_discharge_cut_off_voltage_);
-  readTypedPDO<uint16_t>(pdo_charge_current_limit_);
-  readTypedPDO<uint16_t>(pdo_max_allowed_charge_voltage_);
-  readTypedPDO<uint16_t>(pdo_charge_fault_);
-  readTypedPDO<uint16_t>(pdo_discharge_fault_);
-  readTypedPDO<uint16_t>(pdo_regen_current_limit_);
-  readTypedPDO<uint16_t>(pdo_min_cell_voltage_);
-  readTypedPDO<uint16_t>(pdo_max_cell_voltage_);
-  readTypedPDO<uint16_t>(pdo_cell_balance_status_all_);
-  readTypedPDO<uint16_t>(pdo_pack_voltage_all_);
-
-  // PDO: Read Signed 16 Bit
-  readTypedPDO<int16_t>(pdo_current_);
-  readTypedPDO<int16_t>(pdo_temperature_);
-  readTypedPDO<int16_t>(pdo_temperature_all_);
+  for (int i = 0; i < 27; i++)
+  {
+    readPDO(pdo_list_[i]);
+  }
 }
 
 /**
@@ -240,57 +168,57 @@ void Battery::readAllPDO()
 sensor_msgs::msg::BatteryState Battery::getBatteryState()
 {
   // Serial Number
-  battery_state_.serial_number = std::to_string(sdo_serial_number_.data_);
+  battery_state_.serial_number = std::to_string(getData<uint16_t>(sdo_serial_number_));
 
   // Location, set by node
   battery_state_.location = "";
 
   // Battery Voltage (V): Given 1/1024 V
-  battery_state_.voltage = double(sdo_battery_voltage_.data_) / 1024;
+  battery_state_.voltage = double(getData<uint32_t>(sdo_battery_voltage_)) / 1024;
 
   // Temperature (Celsius): Given 0.125 Celsius
-  battery_state_.temperature = double(sdo_temperature_.data_) * 0.125;
+  battery_state_.temperature = double(getData<int16_t>(sdo_temperature_)) * 0.125;
 
   // Current (A): Given +/- 5 mA
-  battery_state_.current = double(sdo_current_.data_) * 0.005;
+  battery_state_.current = double(getData<int16_t>(sdo_current_)) * 0.005;
 
   // Charge (Ah): Given +/- 5 mA
-  battery_state_.charge = double(sdo_rem_capacity_.data_) * 0.005;
+  battery_state_.charge = double(getData<uint16_t>(sdo_rem_capacity_)) * 0.005;
 
   // Capacity (Ah): Given +/- 5 mA
-  battery_state_.capacity = double(sdo_fcc_.data_) * 0.005;
+  battery_state_.capacity = double(getData<uint16_t>(sdo_fcc_)) * 0.005;
 
   // Design Capacity (Ah): Given +/- 5 mA
-  battery_state_.design_capacity = double(sdo_design_capacity_.data_) * 0.005;
+  battery_state_.design_capacity = double(getData<uint16_t>(sdo_design_capacity_)) * 0.005;
 
   // Percentage: Given percentage
-  battery_state_.percentage = double(sdo_state_of_charge_.data_) / 100;
+  battery_state_.percentage = double(getData<uint8_t>(sdo_state_of_charge_)) / 100;
 
   // Power Supply Status
-  if (sdo_state_of_charge_.data_ == 100)
+  if (getData<uint8_t>(sdo_state_of_charge_) == 100)
   {
     battery_state_.power_supply_status = battery_state_.POWER_SUPPLY_STATUS_FULL;
   }
   else
   {
-    battery_state_.power_supply_status = modeBatteryStatus(sdo_operational_mode_.data_);
+    battery_state_.power_supply_status = modeBatteryStatus(getData<uint16_t>(sdo_operational_mode_));
   }
 
   // Power Supply Health
   battery_state_.power_supply_health = 0;
-  if (faultHighTemp(sdo_charge_fault_.data_) || faultHighTemp(sdo_discharge_fault_.data_))
+  if (faultHighTemp(getData<uint16_t>(sdo_charge_fault_)) || faultHighTemp(getData<uint16_t>(sdo_discharge_fault_)))
   {
     battery_state_.power_supply_health = battery_state_.POWER_SUPPLY_HEALTH_OVERHEAT;
   }
-  else if (faultLowTemp(sdo_charge_fault_.data_) || faultLowTemp(sdo_discharge_fault_.data_))
+  else if (faultLowTemp(getData<uint16_t>(sdo_charge_fault_)) || faultLowTemp(getData<uint16_t>(sdo_discharge_fault_)))
   {
     battery_state_.power_supply_health = battery_state_.POWER_SUPPLY_HEALTH_COLD;
   }
-  else if (faultOverVoltage(sdo_charge_fault_.data_) || faultOverVoltage(sdo_discharge_fault_.data_))
+  else if (faultOverVoltage(getData<uint16_t>(sdo_charge_fault_)) || faultOverVoltage(getData<uint16_t>(sdo_discharge_fault_)))
   {
     battery_state_.power_supply_health = battery_state_.POWER_SUPPLY_HEALTH_OVERVOLTAGE;
   }
-  else if (faultAny(sdo_charge_fault_.data_) || faultAny(sdo_discharge_fault_.data_))
+  else if (faultAny(getData<uint16_t>(sdo_charge_fault_)) || faultAny(getData<uint16_t>(sdo_discharge_fault_)))
   {
     battery_state_.power_supply_health = battery_state_.POWER_SUPPLY_HEALTH_UNSPEC_FAILURE;
   }
@@ -309,7 +237,7 @@ sensor_msgs::msg::BatteryState Battery::getBatteryState()
   battery_state_.cell_voltage.clear();
   for (int i = 0; i < 8; i ++)
   {
-    battery_state_.cell_voltage.push_back(double(sdo_cell_voltages_[i].data_) / 1024);
+    battery_state_.cell_voltage.push_back(double(getData<uint16_t>(sdo_cell_voltages_[i])) / 1024);
   }
 
   return battery_state_;
@@ -324,57 +252,57 @@ sensor_msgs::msg::BatteryState Battery::getBatteryState()
 sensor_msgs::msg::BatteryState Battery::getVirtualBatteryState()
 {
   // Serial Number
-  virtual_battery_state_.serial_number = std::to_string(sdo_serial_number_.data_);
+  virtual_battery_state_.serial_number = std::to_string(getData<uint16_t>(sdo_serial_number_));
 
   // Location, set by node
   virtual_battery_state_.location = "";
 
   // Battery Voltage (V): Given 1/1024 V
-  virtual_battery_state_.voltage = double(pdo_pack_voltage_all_.data_) / 1024;
+  virtual_battery_state_.voltage = double(getData<uint16_t>(pdo_pack_voltage_all_)) / 1024;
 
   // Temperature (Celsius): Given 0.125 Celsius
-  virtual_battery_state_.temperature = double(pdo_temperature_all_.data_) * 0.125;
+  virtual_battery_state_.temperature = double(getData<int16_t>(pdo_temperature_all_)) * 0.125;
 
   // Current (A): Given +/- 5 mA
-  virtual_battery_state_.current = double(pdo_current_.data_) * 0.1;
+  virtual_battery_state_.current = double(getData<int16_t>(pdo_current_)) * 0.1;
 
   // Charge (Ah):
-  virtual_battery_state_.charge = double(pdo_current_stored_.data_);
+  virtual_battery_state_.charge = double(getData<uint16_t>(pdo_current_stored_));
 
   // Capacity (Ah): Given +/- 5 mA
-  // virtual_battery_state_.capacity = double(sdo_fcc_.data_) * 0.005;
+  // virtual_battery_state_.capacity = double(sdo_fcc_)) * 0.005;
 
   // Design Capacity (Ah): Given +/- 5 mA
-  // virtual_battery_state_.design_capacity = double(sdo_design_capacity_.data_) * 0.005;
+  // virtual_battery_state_.design_capacity = double(sdo_design_capacity_)) * 0.005;
 
   // Percentage: Given percentage
-  virtual_battery_state_.percentage = double(pdo_soc_all_.data_) / 100;
+  virtual_battery_state_.percentage = double(getData<uint8_t>(pdo_soc_all_)) / 100;
 
   // Power Supply Status
-  if (pdo_fully_charged_.data_)
+  if (getData<uint8_t>(pdo_fully_charged_))
   {
     virtual_battery_state_.power_supply_status = virtual_battery_state_.POWER_SUPPLY_STATUS_FULL;
   }
   else
   {
-    virtual_battery_state_.power_supply_status = modeBatteryStatus(pdo_operational_mode_.data_);
+    virtual_battery_state_.power_supply_status = modeBatteryStatus(getData<uint8_t>(pdo_operational_mode_));
   }
 
   // Power Supply Health
   virtual_battery_state_.power_supply_health = 0;
-  if (faultHighTemp(pdo_charge_fault_.data_) || faultHighTemp(pdo_discharge_fault_.data_))
+  if (faultHighTemp(getData<uint16_t>(pdo_charge_fault_)) || faultHighTemp(getData<uint16_t>(pdo_discharge_fault_)))
   {
     virtual_battery_state_.power_supply_health = virtual_battery_state_.POWER_SUPPLY_HEALTH_OVERHEAT;
   }
-  else if (faultLowTemp(pdo_charge_fault_.data_) || faultLowTemp(pdo_discharge_fault_.data_))
+  else if (faultLowTemp(getData<uint16_t>(pdo_charge_fault_)) || faultLowTemp(getData<uint16_t>(pdo_discharge_fault_)))
   {
     virtual_battery_state_.power_supply_health = virtual_battery_state_.POWER_SUPPLY_HEALTH_COLD;
   }
-  else if (faultOverVoltage(pdo_charge_fault_.data_) || faultOverVoltage(pdo_discharge_fault_.data_))
+  else if (faultOverVoltage(getData<uint16_t>(pdo_charge_fault_)) || faultOverVoltage(getData<uint16_t>(pdo_discharge_fault_)))
   {
     virtual_battery_state_.power_supply_health = virtual_battery_state_.POWER_SUPPLY_HEALTH_OVERVOLTAGE;
   }
-  else if (faultAny(pdo_charge_fault_.data_) || faultAny(pdo_discharge_fault_.data_))
+  else if (faultAny(getData<uint16_t>(pdo_charge_fault_)) || faultAny(getData<uint16_t>(pdo_discharge_fault_)))
   {
     virtual_battery_state_.power_supply_health = virtual_battery_state_.POWER_SUPPLY_HEALTH_UNSPEC_FAILURE;
   }
@@ -401,38 +329,38 @@ sensor_msgs::msg::BatteryState Battery::getVirtualBatteryState()
 canopen_inventus_interfaces::msg::Status Battery::getBatteryStatus()
 {
   // Versions and Serial Number
-  battery_status_.hardware_version = sdo_hardware_version_.data_;
-  battery_status_.software_version = sdo_software_version_.data_;
-  battery_status_.firmware_version = sdo_firmware_version_.data_;
-  battery_status_.serial_number = std::to_string(sdo_serial_number_.data_);
+  battery_status_.hardware_version = getStringData(sdo_hardware_version_);
+  battery_status_.software_version = getStringData(sdo_software_version_);
+  battery_status_.firmware_version = getStringData(sdo_firmware_version_);
+  battery_status_.serial_number = std::to_string(getData<uint16_t>(sdo_serial_number_));
 
   // Current
-  battery_status_.current = double(sdo_current_.data_) * 0.005;
+  battery_status_.current = double(getData<int16_t>(sdo_current_)) * 0.005;
   // Voltage
-  battery_status_.voltage = double(sdo_battery_voltage_.data_) / 1024;
+  battery_status_.voltage = double(getData<uint32_t>(sdo_battery_voltage_)) / 1024;
   // Temperature
-  battery_status_.temperature = double(sdo_temperature_.data_) * 0.125;
+  battery_status_.temperature = double(getData<int16_t>(sdo_temperature_)) * 0.125;
   // Max. and Min. Cell Temperatures
-  battery_status_.min_cell_temperature = double(sdo_min_cell_temperature_.data_) * 0.125;
-  battery_status_.max_cell_temperature = double(sdo_max_cell_temperature_.data_) * 0.125;
+  battery_status_.min_cell_temperature = double(getData<uint16_t>(sdo_min_cell_temperature_)) * 0.125;
+  battery_status_.max_cell_temperature = double(getData<uint16_t>(sdo_max_cell_temperature_)) * 0.125;
   // State of Charge
-  battery_status_.state_of_charge = double(sdo_state_of_charge_.data_) / 100;
+  battery_status_.state_of_charge = double(getData<uint8_t>(sdo_state_of_charge_)) / 100;
   // Full Charge Capcacity
-  battery_status_.full_charge_capacity = double(sdo_fcc_.data_) * 0.05;
+  battery_status_.full_charge_capacity = double(getData<uint16_t>(sdo_fcc_)) * 0.05;
   // Design Capacity
-  battery_status_.design_capacity = double(sdo_design_capacity_.data_) * 0.05;
+  battery_status_.design_capacity = double(getData<uint16_t>(sdo_design_capacity_)) * 0.05;
   // Remaining Capacity
-  battery_status_.remaining_capacity = double(sdo_rem_capacity_.data_) * 0.05;
+  battery_status_.remaining_capacity = double(getData<uint16_t>(sdo_rem_capacity_)) * 0.05;
   // Cell Voltages
   battery_status_.cell_voltage.clear();
   for (int i = 0; i < 8; i ++)
   {
-    battery_status_.cell_voltage.push_back(double(sdo_cell_voltages_[i].data_) / 1024);
+    battery_status_.cell_voltage.push_back(double(getData<uint16_t>(sdo_cell_voltages_[i])) / 1024);
   }
   // Operation Mode and Faults
-  battery_status_.op_mode = sdo_operational_mode_.data_;
-  battery_status_.charge_fault = sdo_charge_fault_.data_;
-  battery_status_.discharge_fault = sdo_discharge_fault_.data_;
+  battery_status_.op_mode = getData<uint16_t>(sdo_operational_mode_);
+  battery_status_.charge_fault = getData<uint16_t>(sdo_charge_fault_);
+  battery_status_.discharge_fault = getData<uint16_t>(sdo_discharge_fault_);
 
   return battery_status_;
 }
@@ -447,66 +375,66 @@ canopen_inventus_interfaces::msg::Status Battery::getBatteryStatus()
 canopen_inventus_interfaces::msg::VirtualBattery Battery::getVirtualBatteryStatus()
 {
   // TPDO1: Number of Batteries
-  virtual_battery_status_.number_of_batteries = pdo_number_of_batteries_.data_;
+  virtual_battery_status_.number_of_batteries = getData<uint8_t>(pdo_number_of_batteries_);
   // TPDO1: State of Charge
   // virtual_battery_status_.soc = typed_
   // TPDO1: Sum Capacity
-  virtual_battery_status_.sum_capacity = double(pdo_current_stored_.data_);
+  virtual_battery_status_.sum_capacity = double(getData<uint16_t>(pdo_current_stored_));
   // TPDO1: Remaining Run Time
-  virtual_battery_status_.remaining_runtime = double(pdo_remaining_run_time_.data_);
+  virtual_battery_status_.remaining_runtime = double(getData<uint16_t>(pdo_remaining_run_time_));
   // TPDO1: Remaining Charge Time
-  virtual_battery_status_.remaining_chargetime = double(pdo_remaining_charge_time_.data_);
+  virtual_battery_status_.remaining_chargetime = double(getData<uint16_t>(pdo_remaining_charge_time_));
 
   // TPDO2: Average Voltage
-  virtual_battery_status_.avg_voltage = double(pdo_pack_voltage_.data_) / 1024;
+  virtual_battery_status_.avg_voltage = double(getData<uint16_t>(pdo_pack_voltage_)) / 1024;
   // TPDO2: Sum Current
-  virtual_battery_status_.sum_current = double(pdo_current_.data_) / 10.0;
+  virtual_battery_status_.sum_current = double(getData<int16_t>(pdo_current_)) / 10.0;
   // TPDO2: Discharge Current Limit
-  virtual_battery_status_.discharge_current_limit = double(pdo_discharge_current_limit_.data_) / 10.0;
+  virtual_battery_status_.discharge_current_limit = double(getData<uint16_t>(pdo_discharge_current_limit_)) / 10.0;
   // TPDO2: Charge Cutoff Current
-  virtual_battery_status_.charge_cutoff_current = double(pdo_charge_cut_off_current_.data_) / 10.0;
+  virtual_battery_status_.charge_cutoff_current = double(getData<uint16_t>(pdo_charge_cut_off_current_)) / 10.0;
   // TPDO2: Fully Charged
-  virtual_battery_status_.fully_charged = pdo_fully_charged_.data_;
+  virtual_battery_status_.fully_charged = getData<uint8_t>(pdo_fully_charged_);
 
   // TPDO3: Average Temperature
-  virtual_battery_status_.avg_temp = double(pdo_temperature_.data_) * 0.125;
+  virtual_battery_status_.avg_temp = double(getData<int16_t>(pdo_temperature_)) * 0.125;
   // TPDO3: Discharge Cutoff Voltage
-  virtual_battery_status_.discharge_cutoff_voltage = double(pdo_discharge_cut_off_voltage_.data_) / 1024;
+  virtual_battery_status_.discharge_cutoff_voltage = double(getData<uint16_t>(pdo_discharge_cut_off_voltage_)) / 1024;
   // TPDO3: Charge Current Limit
-  virtual_battery_status_.charge_current_limit = double(pdo_charge_current_limit_.data_) / 10.0;
+  virtual_battery_status_.charge_current_limit = double(getData<uint16_t>(pdo_charge_current_limit_)) / 10.0;
   // TPDO3: Max Voltage Allowed
-  virtual_battery_status_.max_voltage_allowed = double(pdo_max_allowed_charge_voltage_.data_) / 1024;
+  virtual_battery_status_.max_voltage_allowed = double(getData<uint16_t>(pdo_max_allowed_charge_voltage_)) / 1024;
 
   // TPDO4: Average Health
-  virtual_battery_status_.avg_health = pdo_soh_.data_;
+  virtual_battery_status_.avg_health = getData<uint8_t>(pdo_soh_);
   // TPDO4: Number of Faulted Batteries
-  virtual_battery_status_.num_faulted_batteries = pdo_number_of_batteries_fault_.data_;
+  virtual_battery_status_.num_faulted_batteries = getData<uint8_t>(pdo_number_of_batteries_fault_);
   // TPDO4: Number of Active Batteries
-  virtual_battery_status_.num_active_batteries = pdo_number_of_active_batteries_.data_;
+  virtual_battery_status_.num_active_batteries = getData<uint8_t>(pdo_number_of_active_batteries_);
   // TPDO4: Operation Mode
-  virtual_battery_status_.op_mode = sdo_operational_mode_.data_;
+  virtual_battery_status_.op_mode = getData<uint8_t>(pdo_operational_mode_);
   // TPDO4: Charge Fault
-  virtual_battery_status_.charge_fault = sdo_charge_fault_.data_;
+  virtual_battery_status_.charge_fault = getData<uint16_t>(pdo_charge_fault_);
   // TPDO4: Discharge Fault
-  virtual_battery_status_.discharge_fault = sdo_discharge_fault_.data_;
+  virtual_battery_status_.discharge_fault = getData<uint16_t>(pdo_discharge_fault_);
 
   // TPDO5: Regen Current Limit
-  virtual_battery_status_.regen_current_limit = double(pdo_regen_current_limit_.data_)/ 10.0;
+  virtual_battery_status_.regen_current_limit = double(getData<uint16_t>(pdo_regen_current_limit_))/ 10.0;
   // TPDO5: Min. Cell Voltage
-  virtual_battery_status_.min_cell_voltage = double(pdo_min_cell_voltage_.data_) / 1024;
+  virtual_battery_status_.min_cell_voltage = double(getData<uint16_t>(pdo_min_cell_voltage_)) / 1024;
   // TPDO5: Max. Cell Voltage
-  virtual_battery_status_.max_cell_voltage = double(pdo_max_cell_voltage_.data_) / 1024;
+  virtual_battery_status_.max_cell_voltage = double(getData<uint16_t>(pdo_max_cell_voltage_)) / 1024;
   // TPDO5: Cell Balance Status
-  virtual_battery_status_.cell_balance_status = double(pdo_cell_balance_status_all_.data_);
+  virtual_battery_status_.cell_balance_status = double(getData<uint16_t>(pdo_cell_balance_status_all_));
 
   // TPDO6: All Average Voltage
-  virtual_battery_status_.all_avg_voltage = double(pdo_pack_voltage_all_.data_) / 1024;
+  virtual_battery_status_.all_avg_voltage = double(getData<uint16_t>(pdo_pack_voltage_all_)) / 1024;
   // TPDO6: All State of Charge
-  virtual_battery_status_.all_soc = double(pdo_soc_all_.data_);
+  virtual_battery_status_.all_soc = double(getData<uint8_t>(pdo_soc_all_));
   // TPDO6: All Average Temperature
-  virtual_battery_status_.all_avg_temp = double(pdo_temperature_all_.data_) * 0.125;
+  virtual_battery_status_.all_avg_temp = double(getData<int16_t>(pdo_temperature_all_)) * 0.125;
   // TPDO6: Node ID of Master Pack
-  virtual_battery_status_.master_node_id = pdo_master_node_id_.data_;
+  virtual_battery_status_.master_node_id = getData<uint8_t>(pdo_master_node_id_);
 
   return virtual_battery_status_;
 }
@@ -600,5 +528,170 @@ uint8_t Battery::modeBatteryStatus(uint16_t data)
   else
   {
     return sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_UNKNOWN;
+  }
+}
+
+/**
+ * @brief Initialize data maps for the three main data indices.
+ *
+ */
+void Battery::initializeDataMaps()
+{
+  // SDO: Static Reads
+  for(int i = 0; i < 6; i++)
+  {
+    initializeData(sdo_static_list_[i]);
+  }
+  // SDO: Dynamic Reads
+  for(int i = 0; i < 18; i++)
+  {
+    initializeData(sdo_dynamic_list_[i]);
+  }
+  // PDO
+  for(int i = 0; i < 27; i++)
+  {
+    initializeData(pdo_list_[i]);
+  }
+}
+
+/**
+ * @brief Initialize default entry in typed map for given index.
+ *
+ * @param index
+ */
+void Battery::initializeData(COIndex index)
+{
+  switch(index.type_)
+  {
+    case CO_DEFTYPE_INTEGER16:
+      int16_data_map_[index.getUniqueIndex()] = 0;
+      break;
+    case CO_DEFTYPE_UNSIGNED8:
+      uint8_data_map_[index.getUniqueIndex()] = 0;
+      break;
+    case CO_DEFTYPE_UNSIGNED16:
+      uint16_data_map_[index.getUniqueIndex()] = 0;
+      break;
+    case CO_DEFTYPE_UNSIGNED32:
+      uint32_data_map_[index.getUniqueIndex()] = 0;
+      break;
+    case CO_DEFTYPE_VISIBLE_STRING:
+      string_data_map_[index.getUniqueIndex()] = "";
+      break;
+    default:
+      return;
+  }
+  available_data_map_[index.getUniqueIndex()] = false;
+}
+
+/**
+ * @brief Retrieve data corresponding to index and type
+ *
+ * @tparam T
+ * @param index
+ * @return T
+ */
+template<typename T>
+T Battery::getData(COIndex index)
+{
+  switch(index.type_)
+  {
+    case CO_DEFTYPE_INTEGER16:
+      return int16_data_map_[index.getUniqueIndex()];
+    case CO_DEFTYPE_UNSIGNED8:
+      return uint8_data_map_[index.getUniqueIndex()];
+    case CO_DEFTYPE_UNSIGNED16:
+      return uint16_data_map_[index.getUniqueIndex()];
+    case CO_DEFTYPE_UNSIGNED32:
+      return uint32_data_map_[index.getUniqueIndex()];
+    default:
+      return -1;
+  }
+}
+
+/**
+ * @brief Retrieve string data. Cutout specific for special type.
+ *
+ * @param index
+ * @return std::string
+ */
+std::string Battery::getStringData(COIndex index)
+{
+  return string_data_map_[index.getUniqueIndex()];
+}
+
+/**
+ * @brief Set data corresponding to index and type.
+ *
+ * @tparam T
+ * @param index
+ * @param data
+ */
+template<typename T>
+void Battery::setData(COIndex index, T data)
+{
+  switch(index.type_)
+  {
+    case CO_DEFTYPE_INTEGER16:
+      int16_data_map_[index.getUniqueIndex()] = int16_t(data);
+      break;
+    case CO_DEFTYPE_UNSIGNED8:
+      uint8_data_map_[index.getUniqueIndex()] = uint8_t(data);
+      break;
+    case CO_DEFTYPE_UNSIGNED16:
+      uint16_data_map_[index.getUniqueIndex()] = uint16_t(data);
+      break;
+    case CO_DEFTYPE_UNSIGNED32:
+      uint32_data_map_[index.getUniqueIndex()] = uint32_t(data);
+      break;
+    default:
+      return;
+  }
+  available_data_map_[index.getUniqueIndex()] = true;
+}
+
+/**
+ * @brief Set string data. Cutout for special type.
+ *
+ * @param index
+ * @param data
+ */
+void Battery::setStringData(COIndex index, std::string data)
+{
+  string_data_map_[index.getUniqueIndex()] = data;
+  available_data_map_[index.getUniqueIndex()] = true;
+}
+
+/**
+ * @brief Check if data for given index is available.
+ *
+ * @param index
+ * @return true
+ * @return false
+ */
+bool Battery::isAvailable(COIndex index)
+{
+  return available_data_map_[index.getUniqueIndex()];
+}
+
+/**
+ * @brief Lower available flag for given index.
+ *
+ * @param index
+ */
+void Battery::clearAvailable(COIndex index)
+{
+  available_data_map_[index.getUniqueIndex()] = false;
+}
+
+/**
+ * @brief Lower available flag for all indices.
+ *
+ */
+void Battery::clearAllAvailable()
+{
+  for (auto it = available_data_map_.begin(); it != available_data_map_.end(); it++)
+  {
+    it->second = false;
   }
 }

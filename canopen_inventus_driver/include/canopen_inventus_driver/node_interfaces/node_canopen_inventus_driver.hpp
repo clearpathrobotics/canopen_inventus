@@ -30,17 +30,6 @@ public:
    virtual void activate(bool called_from_base) override;
    virtual void deactivate(bool called_from_base) override;
    virtual void add_to_master() override;
-   void test();
-   bool readSDO(ros2_canopen::COData & data);
-
-   template <typename T>
-   bool readTypedSDO(ros2_canopen::COTypedData<T> & data);
-
-   template <typename T>
-   void readTypedPDO(ros2_canopen::COTypedData<T> & data);
-
-   void readAllSDO();
-   void readAllPDO();
 
 protected:
    std::shared_ptr<Battery> battery_;

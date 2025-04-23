@@ -178,6 +178,7 @@ template <class NODETYPE>
 void NodeCanopenInventusDriver<NODETYPE>::activate(bool called_from_base)
 {
   NodeCanopenProxyDriver<NODETYPE>::activate(false);
+  delay_count_ = 0;
   // Activate controller
   publish_timer_ = this->node_->create_wall_timer(
     std::chrono::milliseconds(publish_ms_),
@@ -210,6 +211,11 @@ void NodeCanopenInventusDriver<NODETYPE>::poll_timer_callback()
 
   if (this->activated_.load())
   {
+    delay_count_++;
+    if(delay_count_ < int(2000 / this->period_ms_))
+    {
+      return;
+    }
     // SDO Read
     battery_->readAllSDO();
 
@@ -283,7 +289,7 @@ template <class NODETYPE>
 void NodeCanopenInventusDriver<NODETYPE>::add_to_master()
 {
   NodeCanopenProxyDriver<NODETYPE>::add_to_master();
-  battery_ = std::make_shared<Battery>(this->lely_driver_, this->sdo_mtex);
+  battery_ = std::make_shared<Battery>(this->lely_driver_, this->sdo_mtex, this->node_->get_logger());
 }
 
 #endif
