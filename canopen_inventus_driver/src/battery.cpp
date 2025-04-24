@@ -120,11 +120,11 @@ void Battery::readAllSDO()
   // Initialization: Read SDO that only need to be read once.
   if (read_static_sdo_)
   {
-    for(int i = 0; i < 6; i++)
+    for(auto i : sdo_static_list_)
     {
-      if (!isAvailable(sdo_static_list_[i]))
+      if (!isAvailable(i))
       {
-        readSDO(sdo_static_list_[i]);
+        readSDO(i);
         return;
       }
     }
@@ -132,17 +132,12 @@ void Battery::readAllSDO()
     read_static_sdo_ = false;
   }
 
-  int count = 0;
-  for(int i = 0; i < 18; i++)
+  for(auto i : sdo_dynamic_list_)
   {
-    if (!isAvailable(sdo_dynamic_list_[i]))
+    if (!isAvailable(i))
     {
-      readSDO(sdo_dynamic_list_[i]);
-      count++;
-      if(count == 1)
-      {
-        return;
-      }
+      readSDO(i);
+      return;
     }
   }
   clearAllAvailable();
@@ -154,9 +149,9 @@ void Battery::readAllSDO()
  */
 void Battery::readAllPDO()
 {
-  for (int i = 0; i < 27; i++)
+  for (auto i : pdo_list_)
   {
-    readPDO(pdo_list_[i]);
+    readPDO(i);
   }
 }
 
@@ -168,34 +163,34 @@ void Battery::readAllPDO()
 sensor_msgs::msg::BatteryState Battery::getBatteryState()
 {
   // Serial Number
-  battery_state_.serial_number = std::to_string(getData<uint16_t>(sdo_serial_number_));
+  battery_state_.serial_number = getSerialNumber();
 
   // Location, set by node
   battery_state_.location = "";
 
-  // Battery Voltage (V): Given 1/1024 V
-  battery_state_.voltage = double(getData<uint32_t>(sdo_battery_voltage_)) / 1024;
+  // Battery Voltage (V)
+  battery_state_.voltage = getVoltage(sdo_battery_voltage_);
 
-  // Temperature (Celsius): Given 0.125 Celsius
-  battery_state_.temperature = double(getData<int16_t>(sdo_temperature_)) * 0.125;
+  // Temperature (Celsius)
+  battery_state_.temperature = getTemperature(sdo_temperature_);
 
-  // Current (A): Given +/- 5 mA
-  battery_state_.current = double(getData<int16_t>(sdo_current_)) * 0.005;
+  // Current (A)
+  battery_state_.current = getCurrent(sdo_current_);
 
-  // Charge (Ah): Given +/- 5 mA
-  battery_state_.charge = double(getData<uint16_t>(sdo_rem_capacity_)) * 0.005;
+  // Charge (Ah)
+  battery_state_.charge = getCapacity(sdo_rem_capacity_);
 
-  // Capacity (Ah): Given +/- 5 mA
-  battery_state_.capacity = double(getData<uint16_t>(sdo_fcc_)) * 0.005;
+  // Capacity (Ah)
+  battery_state_.capacity = getCapacity(sdo_fcc_);
 
-  // Design Capacity (Ah): Given +/- 5 mA
-  battery_state_.design_capacity = double(getData<uint16_t>(sdo_design_capacity_)) * 0.005;
+  // Design Capacity (Ah)
+  battery_state_.design_capacity = getCapacity(sdo_design_capacity_);
 
-  // Percentage: Given percentage
-  battery_state_.percentage = double(getData<uint8_t>(sdo_state_of_charge_)) / 100;
+  // Percentage
+  battery_state_.percentage = getPercentage(sdo_state_of_charge_);
 
   // Power Supply Status
-  if (getData<uint8_t>(sdo_state_of_charge_) == 100)
+  if (battery_state_.percentage == 1.0)
   {
     battery_state_.power_supply_status = battery_state_.POWER_SUPPLY_STATUS_FULL;
   }
@@ -237,7 +232,7 @@ sensor_msgs::msg::BatteryState Battery::getBatteryState()
   battery_state_.cell_voltage.clear();
   for (int i = 0; i < 8; i ++)
   {
-    battery_state_.cell_voltage.push_back(double(getData<uint16_t>(sdo_cell_voltages_[i])) / 1024);
+    battery_state_.cell_voltage.push_back(getVoltage(sdo_cell_voltages_[i]));
   }
 
   return battery_state_;
@@ -252,31 +247,32 @@ sensor_msgs::msg::BatteryState Battery::getBatteryState()
 sensor_msgs::msg::BatteryState Battery::getVirtualBatteryState()
 {
   // Serial Number
-  virtual_battery_state_.serial_number = std::to_string(getData<uint16_t>(sdo_serial_number_));
+  virtual_battery_state_.serial_number = getSerialNumber();
 
   // Location, set by node
   virtual_battery_state_.location = "";
 
-  // Battery Voltage (V): Given 1/1024 V
-  virtual_battery_state_.voltage = double(getData<uint16_t>(pdo_pack_voltage_all_)) / 1024;
+  // Battery Voltage (V)
+  virtual_battery_state_.voltage = getVoltage(pdo_pack_voltage_all_);
 
-  // Temperature (Celsius): Given 0.125 Celsius
-  virtual_battery_state_.temperature = double(getData<int16_t>(pdo_temperature_all_)) * 0.125;
+  // Temperature (Celsius)
+  virtual_battery_state_.temperature = getTemperature(pdo_temperature_all_);
 
-  // Current (A): Given +/- 5 mA
-  virtual_battery_state_.current = double(getData<int16_t>(pdo_current_)) * 0.1;
+  // Current (A)
+  virtual_battery_state_.current = getCurrent(pdo_current_);
 
   // Charge (Ah):
   virtual_battery_state_.charge = double(getData<uint16_t>(pdo_current_stored_));
 
-  // Capacity (Ah): Given +/- 5 mA
-  // virtual_battery_state_.capacity = double(sdo_fcc_)) * 0.005;
+  // Percentage
+  virtual_battery_state_.percentage = getPercentage(pdo_soc_all_);
 
-  // Design Capacity (Ah): Given +/- 5 mA
-  // virtual_battery_state_.design_capacity = double(sdo_design_capacity_)) * 0.005;
+  // Capacity (Ah): Missing for Virtual Battery
+  virtual_battery_state_.capacity = virtual_battery_state_.charge / virtual_battery_state_.percentage;
 
-  // Percentage: Given percentage
-  virtual_battery_state_.percentage = double(getData<uint8_t>(pdo_soc_all_)) / 100;
+  // Design Capacity (Ah): Missing for Virtual Battery
+  virtual_battery_state_.design_capacity = virtual_battery_state_.charge / virtual_battery_state_.percentage;
+
 
   // Power Supply Status
   if (getData<uint8_t>(pdo_fully_charged_))
@@ -332,31 +328,40 @@ canopen_inventus_interfaces::msg::Status Battery::getBatteryStatus()
   battery_status_.hardware_version = getStringData(sdo_hardware_version_);
   battery_status_.software_version = getStringData(sdo_software_version_);
   battery_status_.firmware_version = getStringData(sdo_firmware_version_);
-  battery_status_.serial_number = std::to_string(getData<uint16_t>(sdo_serial_number_));
+  battery_status_.serial_number = getSerialNumber();
 
   // Current
-  battery_status_.current = double(getData<int16_t>(sdo_current_)) * 0.005;
+  battery_status_.current = getCurrent(sdo_current_);
+
   // Voltage
-  battery_status_.voltage = double(getData<uint32_t>(sdo_battery_voltage_)) / 1024;
+  battery_status_.voltage = getVoltage(sdo_battery_voltage_);
+
   // Temperature
-  battery_status_.temperature = double(getData<int16_t>(sdo_temperature_)) * 0.125;
+  battery_status_.temperature = getTemperature(sdo_temperature_);
+
   // Max. and Min. Cell Temperatures
-  battery_status_.min_cell_temperature = double(getData<uint16_t>(sdo_min_cell_temperature_)) * 0.125;
-  battery_status_.max_cell_temperature = double(getData<uint16_t>(sdo_max_cell_temperature_)) * 0.125;
+  battery_status_.min_cell_temperature = getTemperature(sdo_min_cell_temperature_);
+  battery_status_.max_cell_temperature = getTemperature(sdo_max_cell_temperature_);
+
   // State of Charge
-  battery_status_.state_of_charge = double(getData<uint8_t>(sdo_state_of_charge_)) / 100;
+  battery_status_.state_of_charge = getPercentage(sdo_state_of_charge_);
+
   // Full Charge Capcacity
-  battery_status_.full_charge_capacity = double(getData<uint16_t>(sdo_fcc_)) * 0.05;
+  battery_status_.full_charge_capacity = getCapacity(sdo_fcc_);
+
   // Design Capacity
-  battery_status_.design_capacity = double(getData<uint16_t>(sdo_design_capacity_)) * 0.05;
+  battery_status_.design_capacity = getCapacity(sdo_design_capacity_);
+
   // Remaining Capacity
-  battery_status_.remaining_capacity = double(getData<uint16_t>(sdo_rem_capacity_)) * 0.05;
+  battery_status_.remaining_capacity = getCapacity(sdo_rem_capacity_);
+
   // Cell Voltages
   battery_status_.cell_voltage.clear();
   for (int i = 0; i < 8; i ++)
   {
-    battery_status_.cell_voltage.push_back(double(getData<uint16_t>(sdo_cell_voltages_[i])) / 1024);
+    battery_status_.cell_voltage.push_back(getVoltage(sdo_cell_voltages_[i]));
   }
+
   // Operation Mode and Faults
   battery_status_.op_mode = getData<uint16_t>(sdo_operational_mode_);
   battery_status_.charge_fault = getData<uint16_t>(sdo_charge_fault_);
@@ -377,34 +382,37 @@ canopen_inventus_interfaces::msg::VirtualBattery Battery::getVirtualBatteryStatu
   // TPDO1: Number of Batteries
   virtual_battery_status_.number_of_batteries = getData<uint8_t>(pdo_number_of_batteries_);
   // TPDO1: State of Charge
-  // virtual_battery_status_.soc = typed_
+  virtual_battery_status_.soc = getPercentage(pdo_soc_);
   // TPDO1: Sum Capacity
-  virtual_battery_status_.sum_capacity = double(getData<uint16_t>(pdo_current_stored_));
-  // TPDO1: Remaining Run Time
-  virtual_battery_status_.remaining_runtime = double(getData<uint16_t>(pdo_remaining_run_time_));
-  // TPDO1: Remaining Charge Time
-  virtual_battery_status_.remaining_chargetime = double(getData<uint16_t>(pdo_remaining_charge_time_));
+  virtual_battery_status_.sum_capacity = getScaledDouble(pdo_current_stored_, 1.0);
+  // TPDO1: Remaining Run Time in Minutes
+  virtual_battery_status_.remaining_runtime = getScaledDouble(pdo_remaining_run_time_, 1.0);
+  // TPDO1: Remaining Charge Time in Minutes
+  virtual_battery_status_.remaining_chargetime = getScaledDouble(pdo_remaining_charge_time_, 1.0);
+  if(virtual_battery_status_.remaining_chargetime == 0xFFFF)
+  {
+    virtual_battery_status_.remaining_chargetime = -1;
+  }
 
   // TPDO2: Average Voltage
-  virtual_battery_status_.avg_voltage = double(getData<uint16_t>(pdo_pack_voltage_)) / 1024;
+  virtual_battery_status_.avg_voltage = getVoltage(pdo_pack_voltage_);
   // TPDO2: Sum Current
-  virtual_battery_status_.sum_current = double(getData<int16_t>(pdo_current_)) / 10.0;
+  virtual_battery_status_.sum_current = getCurrent(pdo_current_);
   // TPDO2: Discharge Current Limit
-  virtual_battery_status_.discharge_current_limit = double(getData<uint16_t>(pdo_discharge_current_limit_)) / 10.0;
+  virtual_battery_status_.discharge_current_limit = getCurrent(pdo_discharge_current_limit_);
   // TPDO2: Charge Cutoff Current
-  virtual_battery_status_.charge_cutoff_current = double(getData<uint16_t>(pdo_charge_cut_off_current_)) / 10.0;
+  virtual_battery_status_.charge_cutoff_current = getCurrent(pdo_charge_cut_off_current_);
   // TPDO2: Fully Charged
-  virtual_battery_status_.fully_charged = getData<uint8_t>(pdo_fully_charged_);
+  virtual_battery_status_.fully_charged = bool(getData<uint8_t>(pdo_fully_charged_));
 
   // TPDO3: Average Temperature
-  virtual_battery_status_.avg_temp = double(getData<int16_t>(pdo_temperature_)) * 0.125;
+  virtual_battery_status_.avg_temp = getTemperature(pdo_temperature_);
   // TPDO3: Discharge Cutoff Voltage
-  virtual_battery_status_.discharge_cutoff_voltage = double(getData<uint16_t>(pdo_discharge_cut_off_voltage_)) / 1024;
+  virtual_battery_status_.discharge_cutoff_voltage = getVoltage(pdo_discharge_cut_off_voltage_);
   // TPDO3: Charge Current Limit
-  virtual_battery_status_.charge_current_limit = double(getData<uint16_t>(pdo_charge_current_limit_)) / 10.0;
+  virtual_battery_status_.charge_current_limit = getCurrent(pdo_charge_current_limit_);
   // TPDO3: Max Voltage Allowed
-  virtual_battery_status_.max_voltage_allowed = double(getData<uint16_t>(pdo_max_allowed_charge_voltage_)) / 1024;
-
+  virtual_battery_status_.max_voltage_allowed = getVoltage(pdo_max_allowed_charge_voltage_);
   // TPDO4: Average Health
   virtual_battery_status_.avg_health = getData<uint8_t>(pdo_soh_);
   // TPDO4: Number of Faulted Batteries
@@ -419,20 +427,20 @@ canopen_inventus_interfaces::msg::VirtualBattery Battery::getVirtualBatteryStatu
   virtual_battery_status_.discharge_fault = getData<uint16_t>(pdo_discharge_fault_);
 
   // TPDO5: Regen Current Limit
-  virtual_battery_status_.regen_current_limit = double(getData<uint16_t>(pdo_regen_current_limit_))/ 10.0;
+  virtual_battery_status_.regen_current_limit = getCurrent(pdo_regen_current_limit_);
   // TPDO5: Min. Cell Voltage
-  virtual_battery_status_.min_cell_voltage = double(getData<uint16_t>(pdo_min_cell_voltage_)) / 1024;
+  virtual_battery_status_.min_cell_voltage = getVoltage(pdo_min_cell_voltage_);
   // TPDO5: Max. Cell Voltage
-  virtual_battery_status_.max_cell_voltage = double(getData<uint16_t>(pdo_max_cell_voltage_)) / 1024;
+  virtual_battery_status_.max_cell_voltage = getVoltage(pdo_max_cell_voltage_);
   // TPDO5: Cell Balance Status
-  virtual_battery_status_.cell_balance_status = double(getData<uint16_t>(pdo_cell_balance_status_all_));
+  virtual_battery_status_.cell_balance_status = getData<uint16_t>(pdo_cell_balance_status_all_);
 
   // TPDO6: All Average Voltage
-  virtual_battery_status_.all_avg_voltage = double(getData<uint16_t>(pdo_pack_voltage_all_)) / 1024;
+  virtual_battery_status_.all_avg_voltage = getVoltage(pdo_pack_voltage_all_);
   // TPDO6: All State of Charge
-  virtual_battery_status_.all_soc = double(getData<uint8_t>(pdo_soc_all_));
+  virtual_battery_status_.all_soc = getPercentage(pdo_soc_all_);
   // TPDO6: All Average Temperature
-  virtual_battery_status_.all_avg_temp = double(getData<int16_t>(pdo_temperature_all_)) * 0.125;
+  virtual_battery_status_.all_avg_temp = getTemperature(pdo_temperature_all_);
   // TPDO6: Node ID of Master Pack
   virtual_battery_status_.master_node_id = getData<uint8_t>(pdo_master_node_id_);
 
@@ -695,3 +703,100 @@ void Battery::clearAllAvailable()
     it->second = false;
   }
 }
+
+/**
+ * @brief Convert integer data to floating point data and scale it
+ * by given value
+ *
+ * @param index
+ * @param factor
+ * @return double
+ */
+double Battery::getScaledDouble(COIndex index, double factor)
+{
+  double value = 0.0;
+  if (index.type_ == CO_DEFTYPE_INTEGER16)
+  {
+    value = double(getData<int16_t>(index));
+  }
+  else if (index.type_ == CO_DEFTYPE_UNSIGNED8)
+  {
+    value = double(getData<uint8_t>(index));
+  }
+  else if (index.type_ == CO_DEFTYPE_UNSIGNED16)
+  {
+    value = double(getData<uint16_t>(index));
+  }
+  else if (index.type_ == CO_DEFTYPE_UNSIGNED32)
+  {
+    value = double(getData<uint32_t>(index));
+  }
+  return value * factor;
+}
+
+/**
+ * @brief Get voltage (V) by scaling from given mV.
+ *
+ * @param index
+ * @return double
+ */
+double Battery::getVoltage(COIndex index)
+{
+  return getScaledDouble(index, 0.001);
+}
+
+/**
+ * @brief Get temperature (Celsius) by scaling from given +/- 0.125C
+ *
+ * @param index
+ * @return double
+ */
+double Battery::getTemperature(COIndex index)
+{
+  return getScaledDouble(index, 0.125);
+}
+
+/**
+ * @brief Get current (A) by scaling given 100mA
+ *
+ * @param index
+ * @return double
+ */
+double Battery::getCurrent(COIndex index)
+{
+  return getScaledDouble(index, 0.1);
+}
+
+/**
+ * @brief Get charge capacity (Ah) by scaling given 5mAh
+ *
+ * @param index
+ * @return double
+ */
+double Battery::getCapacity(COIndex index)
+{
+  return getScaledDouble(index, 0.005);
+}
+
+/**
+ * @brief Get percentage by converting given value into decimal
+ *
+ * @param index
+ * @return double
+ */
+double Battery::getPercentage(COIndex index)
+{
+  return getScaledDouble(index, 0.01);
+}
+
+/**
+ * @brief Convert integer serial number to string.
+ *
+ * @return std::string
+ */
+std::string Battery::getSerialNumber()
+{
+  return std::to_string(getData<uint16_t>(sdo_serial_number_));
+};
+
+

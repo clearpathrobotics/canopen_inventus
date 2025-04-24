@@ -52,6 +52,7 @@ protected:
    bool is_master_;
    std::string location_;
    uint32_t publish_ms_;
+   int delay_count_;
 };
 } // namespace canopen_inventus_driver
 } // namespace node_interfaces

@@ -288,7 +288,8 @@ void NodeCanopenInventusDriver<NODETYPE>::publish()
 template <class NODETYPE>
 void NodeCanopenInventusDriver<NODETYPE>::add_to_master()
 {
-  NodeCanopenProxyDriver<NODETYPE>::add_to_master();
+  RCLCPP_INFO(this->node_->get_logger(), "Before adding to master...");  NodeCanopenProxyDriver<NODETYPE>::add_to_master();
+  RCLCPP_INFO(this->node_->get_logger(), "After adding to master...");
   battery_ = std::make_shared<Battery>(this->lely_driver_, this->sdo_mtex, this->node_->get_logger());
 }
 

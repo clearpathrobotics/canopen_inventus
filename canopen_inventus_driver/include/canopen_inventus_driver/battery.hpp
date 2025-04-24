@@ -106,6 +106,7 @@ public:
 
   // PDO: Unsigned 8 Bit
   COIndex pdo_number_of_batteries_ = {0x4850, 0x00, CO_DEFTYPE_UNSIGNED8};
+  COIndex pdo_soc_ = {0x4851, 0x00, CO_DEFTYPE_UNSIGNED8};
   COIndex pdo_charge_cut_off_current_ = {0x4858, 0x00, CO_DEFTYPE_UNSIGNED8};
   COIndex pdo_fully_charged_ = {0x4859, 0x00, CO_DEFTYPE_UNSIGNED8};
   COIndex pdo_soh_ = {0x485E, 0x00, CO_DEFTYPE_UNSIGNED8};
@@ -138,8 +139,9 @@ public:
   COIndex pdo_temperature_all_ = {0x486A, 0x00, CO_DEFTYPE_INTEGER16};
 
   // PDO List
-  COIndex pdo_list_[27] = {
+  COIndex pdo_list_[28] = {
     pdo_number_of_batteries_,
+    pdo_soc_,
     pdo_charge_cut_off_current_,
     pdo_fully_charged_,
     pdo_soh_,
@@ -219,6 +221,15 @@ public:
   bool isAvailable(COIndex index);
   void clearAvailable(COIndex index);
   void clearAllAvailable();
+
+  // Data Conversion
+  std::string getSerialNumber();
+  double getScaledDouble(COIndex index, double factor);
+  double getVoltage(COIndex index);
+  double getTemperature(COIndex index);
+  double getCurrent(COIndex index);
+  double getCapacity(COIndex index);
+  double getPercentage(COIndex index);
 
 private:
   std::shared_ptr<LelyDriverBridge> driver_;
