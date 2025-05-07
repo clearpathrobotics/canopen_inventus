@@ -39,12 +39,45 @@ void NodeCanopenInventusDriver<NODETYPE>::init(bool called_from_base)
 template <>
 void NodeCanopenInventusDriver<rclcpp::Node>::init(bool called_from_base)
 {
-  NodeCanopenProxyDriver<rclcpp::Node>::init(false);
+  // Hide ProxyDriver Topics
+  nmt_state_publisher = this->node_->create_publisher<std_msgs::msg::String>(
+    "~/_nmt_state", 10);
+  tpdo_subscriber = this->node_->create_subscription<canopen_interfaces::msg::COData>(
+    "~/_tpdo", 10,
+    std::bind(&NodeCanopenInventusDriver<rclcpp::Node>::on_tpdo, this, std::placeholders::_1));
+
+  rpdo_publisher = this->node_->create_publisher<canopen_interfaces::msg::COData>(
+    "~/_rpdo", 10);
+
+  nmt_state_reset_service = this->node_->create_service<std_srvs::srv::Trigger>(
+    "~/_nmt_reset_node",
+    std::bind(
+      &NodeCanopenInventusDriver<rclcpp::Node>::on_nmt_state_reset, this, std::placeholders::_1,
+      std::placeholders::_2));
+
+  nmt_state_start_service = this->node_->create_service<std_srvs::srv::Trigger>(
+    "~/_nmt_start_node",
+    std::bind(
+      &NodeCanopenInventusDriver<rclcpp::Node>::on_nmt_state_start, this, std::placeholders::_1,
+      std::placeholders::_2));
+
+  sdo_read_service = this->node_->create_service<canopen_interfaces::srv::CORead>(
+    "~/_sdo_read",
+    std::bind(
+      &NodeCanopenInventusDriver<rclcpp::Node>::on_sdo_read, this, std::placeholders::_1,
+      std::placeholders::_2));
+
+  sdo_write_service = this->node_->create_service<canopen_interfaces::srv::COWrite>(
+    "~/_sdo_write",
+    std::bind(
+      &NodeCanopenInventusDriver<rclcpp::Node>::on_sdo_write, this, std::placeholders::_1,
+      std::placeholders::_2));
+
   // Publisher: Battery State
-  publish_battery_state_ = this->node_->create_publisher<sensor_msgs::msg::BatteryState>("~/battery_state", 1);
+  publish_battery_state_ = this->node_->create_publisher<sensor_msgs::msg::BatteryState>("~/state", 1);
 
   // Publisher: Battery Status
-  publish_battery_status_ = this->node_->create_publisher<canopen_inventus_interfaces::msg::Status>("~/battery_status", 1);
+  publish_battery_status_ = this->node_->create_publisher<canopen_inventus_interfaces::msg::Status>("~/status", 1);
 }
 
 /**
@@ -56,12 +89,45 @@ void NodeCanopenInventusDriver<rclcpp::Node>::init(bool called_from_base)
 template <>
 void NodeCanopenInventusDriver<rclcpp_lifecycle::LifecycleNode>::init(bool called_from_base)
 {
-  NodeCanopenProxyDriver<rclcpp_lifecycle::LifecycleNode>::init(false);
+  // Hide ProxyDriver Topics
+  nmt_state_publisher = this->node_->create_publisher<std_msgs::msg::String>(
+    "~/_nmt_state", 10);
+  tpdo_subscriber = this->node_->create_subscription<canopen_interfaces::msg::COData>(
+    "~/_tpdo", 10,
+    std::bind(&NodeCanopenInventusDriver<rclcpp_lifecycle::LifecycleNode>::on_tpdo, this, std::placeholders::_1));
+
+  rpdo_publisher = this->node_->create_publisher<canopen_interfaces::msg::COData>(
+    "~/_rpdo", 10);
+
+  nmt_state_reset_service = this->node_->create_service<std_srvs::srv::Trigger>(
+    "~/_nmt_reset_node",
+    std::bind(
+      &NodeCanopenInventusDriver<rclcpp_lifecycle::LifecycleNode>::on_nmt_state_reset, this, std::placeholders::_1,
+      std::placeholders::_2));
+
+  nmt_state_start_service = this->node_->create_service<std_srvs::srv::Trigger>(
+    "~/_nmt_start_node",
+    std::bind(
+      &NodeCanopenInventusDriver<rclcpp_lifecycle::LifecycleNode>::on_nmt_state_start, this, std::placeholders::_1,
+      std::placeholders::_2));
+
+  sdo_read_service = this->node_->create_service<canopen_interfaces::srv::CORead>(
+    "~/_sdo_read",
+    std::bind(
+      &NodeCanopenInventusDriver<rclcpp_lifecycle::LifecycleNode>::on_sdo_read, this, std::placeholders::_1,
+      std::placeholders::_2));
+
+  sdo_write_service = this->node_->create_service<canopen_interfaces::srv::COWrite>(
+    "~/_sdo_write",
+    std::bind(
+      &NodeCanopenInventusDriver<rclcpp_lifecycle::LifecycleNode>::on_sdo_write, this, std::placeholders::_1,
+      std::placeholders::_2));
+
   // Publisher: Battery State
-  publish_battery_state_ = this->node_->create_publisher<sensor_msgs::msg::BatteryState>("~/battery_state", 1);
+  publish_battery_state_ = this->node_->create_publisher<sensor_msgs::msg::BatteryState>("~/state", 1);
 
   // Publisher: Battery Status
-  publish_battery_status_ = this->node_->create_publisher<canopen_inventus_interfaces::msg::Status>("~/battery_status", 1);
+  publish_battery_status_ = this->node_->create_publisher<canopen_inventus_interfaces::msg::Status>("~/status", 1);
 }
 
 /**
@@ -110,9 +176,9 @@ void NodeCanopenInventusDriver<rclcpp::Node>::configure(bool called_from_base)
   if (is_master_)
   {
     // Publisher: Visual Battery BatteryState
-    publish_virtual_battery_state_ = this->node_->create_publisher<sensor_msgs::msg::BatteryState>("~/virtual_battery_state", 1);
+    publish_virtual_battery_state_ = this->node_->create_publisher<sensor_msgs::msg::BatteryState>("state", 1);
     // Publisher: Visual Battery Inventus Status
-    publish_virtual_battery_status_ = this->node_->create_publisher<canopen_inventus_interfaces::msg::VirtualBattery>("~/virtual_battery_status", 1);
+    publish_virtual_battery_status_ = this->node_->create_publisher<canopen_inventus_interfaces::msg::VirtualBattery>("status", 1);
   }
 }
 
@@ -162,9 +228,9 @@ void NodeCanopenInventusDriver<rclcpp_lifecycle::LifecycleNode>::configure(bool 
   if (is_master_)
   {
     // Publisher: Visual Battery BatteryState
-    publish_virtual_battery_state_ = this->node_->create_publisher<sensor_msgs::msg::BatteryState>("~/virtual_battery_state", 1);
+    publish_virtual_battery_state_ = this->node_->create_publisher<sensor_msgs::msg::BatteryState>("state", 1);
     // Publisher: Visual Battery Inventus Status
-    publish_virtual_battery_status_ = this->node_->create_publisher<canopen_inventus_interfaces::msg::VirtualBattery>("~/virtual_battery_status", 1);
+    publish_virtual_battery_status_ = this->node_->create_publisher<canopen_inventus_interfaces::msg::VirtualBattery>("status", 1);
   }
 }
 
