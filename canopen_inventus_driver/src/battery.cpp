@@ -506,7 +506,19 @@ bool Battery::faultOverVoltage(uint16_t data)
  */
 bool Battery::faultAny(uint16_t data)
 {
-  return data | 0x00;
+  bool any = false;
+  // Check all faults, ignore reserved
+  for (int i = 0; i < 16; i++)
+  {
+    // Reserved range
+    if ((i > 8) | (i < 15))
+    {
+      continue;
+    }
+    // Check fault
+    any &= data & (0x01 << i);
+  }
+  return any;
 }
 
 /**
