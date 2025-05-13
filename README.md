@@ -3,7 +3,7 @@
 Implementation of a BMS driver for the Inventus battery using the `ros2_canopen` library.
 
 ## Configuration
-If an EDS file is available, follow the `Configuration Package` instructions in the `ros2_canopen` tutorials to setup a configuration package for your system. In the bus configuration, use this package's driver.
+If an EDS file is available, follow the `Configuration Package` instructions in the [`ros2_canopen` tutorials](https://ros-industrial.github.io/ros2_canopen/manual/rolling/) to setup a configuration package for your system. In the bus configuration, use this package's driver.
 
 For example, the following `bus.yml` configuration can be used to launch a two battery system:
 ```yaml
