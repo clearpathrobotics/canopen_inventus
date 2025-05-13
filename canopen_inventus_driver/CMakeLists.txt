@@ -35,7 +35,6 @@ lely_core_libraries
 std_msgs
 std_srvs
 sensor_msgs
-inventus_bmu
 )
 
 # Battery Library
