@@ -37,8 +37,6 @@
 #include "canopen_inventus_interfaces/msg/virtual_battery.hpp"
 #include "canopen_inventus_interfaces/msg/status.hpp"
 #include "canopen_proxy_driver/node_interfaces/node_canopen_proxy_driver.hpp"
-#include "inventus_bmu/msg/multi_status.hpp"
-#include "inventus_bmu/msg/status.hpp"
 #include "sensor_msgs/msg/battery_state.hpp"
 #include "std_msgs/msg/float32.hpp"
 
