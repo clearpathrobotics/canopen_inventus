@@ -20,7 +20,6 @@ find_package(lely_core_libraries REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(sensor_msgs REQUIRED)
-find_package(inventus_bmu REQUIRED)
 
 set(dependencies
 rclcpp
