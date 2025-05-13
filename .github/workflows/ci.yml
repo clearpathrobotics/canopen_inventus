@@ -31,5 +31,5 @@ jobs:
         with:
           target-ros2-distro: jazzy
           package-name: |
-            clearpath_inventus_driver
-            clearpath_inventus_interfaces
+            canopen_inventus_driver
+            canopen_inventus_interfaces
