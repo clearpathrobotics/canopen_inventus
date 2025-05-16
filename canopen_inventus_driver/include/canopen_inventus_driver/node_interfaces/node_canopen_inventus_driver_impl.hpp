@@ -298,6 +298,28 @@ void NodeCanopenInventusDriver<NODETYPE>::deactivate(bool called_from_base)
 }
 
 /**
+ * @brief Set availability
+ *
+ * @tparam NODETYPE
+ * @param d
+ */
+template <class NODETYPE>
+void NodeCanopenInventusDriver<NODETYPE>::on_rpdo(ros2_canopen::COData d)
+{
+  NodeCanopenProxyDriver<NODETYPE>::on_rpdo(d);
+  if (this->activated_.load())
+  {
+    for (ros2_canopen::COIndex i : battery_->pdo_list_)
+    {
+      if (i.index_ == d.index_ && i.subindex_ == d.subindex_)
+      {
+        battery_->setAvailable(i);
+      }
+    }
+  }
+}
+
+/**
  * @brief Timer callback where SDO and PDO reads are executed.
  *
  * @tparam NODETYPE
@@ -353,27 +375,42 @@ void NodeCanopenInventusDriver<NODETYPE>::publish()
   header.stamp = this->node_->now();
 
   // Battery State Message
-  sensor_msgs::msg::BatteryState battery_state_msg = battery_->getBatteryState();
+  sensor_msgs::msg::BatteryState battery_state_msg;
+  bool battery_state_res = battery_->getBatteryState(battery_state_msg);
   battery_state_msg.header.stamp = header.stamp;
   battery_state_msg.location = location_;
-  publish_battery_state_->publish(battery_state_msg);
 
   // Battery Status Message
-  canopen_inventus_interfaces::msg::Status battery_status_msg = battery_->getBatteryStatus();
+  canopen_inventus_interfaces::msg::Status battery_status_msg;
+  bool battery_status_res = battery_->getBatteryStatus(battery_status_msg);
   battery_status_msg.header.stamp = header.stamp;
-  publish_battery_status_->publish(battery_status_msg);
+
+  // Publish SDO Data
+  if (battery_state_res && battery_status_res)
+  {
+    publish_battery_state_->publish(battery_state_msg);
+    publish_battery_status_->publish(battery_status_msg);
+    battery_->clearAllSDOAvailable();
+  }
 
   if(is_master_)
   {
     // Virtual Battery State
-    sensor_msgs::msg::BatteryState virtual_battery_state_msg = battery_->getVirtualBatteryState();
+    sensor_msgs::msg::BatteryState virtual_battery_state_msg;
+    bool virtual_battery_state_res = battery_->getVirtualBatteryState(virtual_battery_state_msg);
     virtual_battery_state_msg.header.stamp = header.stamp;
-    publish_virtual_battery_state_->publish(virtual_battery_state_msg);
 
     // Virtual Battery Status
-    canopen_inventus_interfaces::msg::VirtualBattery virtual_battery_status_msg = battery_->getVirtualBatteryStatus();
+    canopen_inventus_interfaces::msg::VirtualBattery virtual_battery_status_msg;
+    bool virtual_battery_status_res = battery_->getVirtualBatteryStatus(virtual_battery_status_msg);
     virtual_battery_status_msg.header.stamp = header.stamp;
-    publish_virtual_battery_status_->publish(virtual_battery_status_msg);
+
+    if (virtual_battery_state_res && virtual_battery_status_res)
+    {
+      publish_virtual_battery_state_->publish(virtual_battery_state_msg);
+      publish_virtual_battery_status_->publish(virtual_battery_status_msg);
+      battery_->clearAllPDOAvailable();
+    }
   }
 
 }

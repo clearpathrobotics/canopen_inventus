@@ -76,6 +76,7 @@ protected:
 
    void publish();
    virtual void poll_timer_callback() override;
+   virtual void on_rpdo(COData data) override;
 
    void publish_timer_callback();
 

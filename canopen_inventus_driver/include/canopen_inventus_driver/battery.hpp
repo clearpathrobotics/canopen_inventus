@@ -212,17 +212,11 @@ public:
   // Availability
   std::map<uint32_t, bool> available_data_map_;
 
-  // Messages
-  sensor_msgs::msg::BatteryState battery_state_;
-  sensor_msgs::msg::BatteryState virtual_battery_state_;
-  canopen_inventus_interfaces::msg::Status battery_status_;
-  canopen_inventus_interfaces::msg::VirtualBattery virtual_battery_status_;
-
   // Methods
-  sensor_msgs::msg::BatteryState getBatteryState();
-  canopen_inventus_interfaces::msg::Status getBatteryStatus();
-  sensor_msgs::msg::BatteryState getVirtualBatteryState();
-  canopen_inventus_interfaces::msg::VirtualBattery getVirtualBatteryStatus();
+  bool getBatteryState(sensor_msgs::msg::BatteryState &msg);
+  bool getBatteryStatus(canopen_inventus_interfaces::msg::Status &msg);
+  bool getVirtualBatteryState(sensor_msgs::msg::BatteryState &msg);
+  bool getVirtualBatteryStatus(canopen_inventus_interfaces::msg::VirtualBattery &msg);
 
   bool readState();
   bool faultHighTemp(uint16_t data);
@@ -247,12 +241,17 @@ public:
   std::string getStringData(COIndex index);
 
   template<typename T>
-  void setData(COIndex index, T data);
-  void setStringData(COIndex index, std::string data);
+  void setData(COIndex index, T data, bool update_availability = true);
+  void setStringData(COIndex index, std::string data, bool update_availability = true);
 
   bool isAvailable(COIndex index);
+  bool isAllSDOAvailable();
+  bool isAllPDOAvailable();
   void clearAvailable(COIndex index);
   void clearAllAvailable();
+  void clearAllSDOAvailable();
+  void clearAllPDOAvailable();
+  void setAvailable(COIndex index);
 
   // Data Conversion
   std::string getSerialNumber();
