@@ -30,8 +30,8 @@
  * Please send comments, questions, or patches to code@clearpathrobotics.com
  *
  */
-#ifndef NODE_CANOPEN_INVENTUS_DRIVER_IMPL_HPP_
-#define NODE_CANOPEN_INVENTUS_DRIVER_IMPL_HPP_
+#ifndef CANOPEN_INVENTUS_DRIVER__NODE_CANOPEN_INVENTUS_DRIVER_IMPL_HPP_
+#define CANOPEN_INVENTUS_DRIVER__NODE_CANOPEN_INVENTUS_DRIVER_IMPL_HPP_
 
 #include "canopen_inventus_driver/node_interfaces/node_canopen_inventus_driver.hpp"
 

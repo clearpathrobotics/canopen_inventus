@@ -30,8 +30,8 @@
  * Please send comments, questions, or patches to code@clearpathrobotics.com
  *
  */
-#ifndef NODE_CANOPEN_INVENTUS_DRIVER
-#define NODE_CANOPEN_INVENTUS_DRIVER
+#ifndef CANOPEN_INVENTUS_DRIVER__NODE_CANOPEN_INVENTUS_DRIVER_HPP_
+#define CANOPEN_INVENTUS_DRIVER__NODE_CANOPEN_INVENTUS_DRIVER_HPP_
 
 #include "canopen_inventus_driver/battery.hpp"
 #include "canopen_inventus_interfaces/msg/virtual_battery.hpp"

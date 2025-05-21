@@ -30,8 +30,8 @@
  * Please send comments, questions, or patches to code@clearpathrobotics.com
  *
  */
-#ifndef BATTERY_HPP
-#define BATTERY_HPP
+#ifndef CANOPEN_INVENTUS_DRIVER__BATTERY_HPP_
+#define CANOPEN_INVENTUS_DRIVER__BATTERY_HPP_
 
 #include <lely/co/type.hpp>
 
@@ -276,4 +276,4 @@ private:
 
 } // namespace ros2_canopen
 
-#endif // BATTERY_HPP
+#endif // CANOPEN_INVENTUS_DRIVER__BATTERY_HPP_
