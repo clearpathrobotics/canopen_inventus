@@ -3,9 +3,9 @@
 <package format="3">
   <name>canopen_inventus_driver</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="lcamero@clearpathrobotics.com">lcamero</maintainer>
-  <license>TODO: License declaration</license>
+  <description>ros2_canopen implementation of Inventus BMS driver</description>
+  <maintainer email="lcamero@clearpathrobotics.com">Luis Camero</maintainer>
+  <license>BSD</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
