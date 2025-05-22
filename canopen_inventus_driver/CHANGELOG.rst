@@ -2,8 +2,8 @@
 Changelog for package canopen_inventus_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.1.0 (2025-05-22)
+------------------
 * Update maintainer, description, and license
 * Update headers
 * Only publish when data is available
