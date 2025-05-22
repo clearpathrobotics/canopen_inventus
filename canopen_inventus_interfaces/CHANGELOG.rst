@@ -2,8 +2,8 @@
 Changelog for package canopen_inventus_interfaces
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.1.1 (2025-05-22)
+------------------
 * Fixed missing dependency.
 * Contributors: Tony Baltovski
 
