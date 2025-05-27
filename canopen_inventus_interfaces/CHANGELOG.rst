@@ -2,6 +2,11 @@
 Changelog for package canopen_inventus_interfaces
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Updated package.xml to be BSD-3-Clause licence.
+* Contributors: Tony Baltovski
+
 0.1.1 (2025-05-22)
 ------------------
 * Fixed missing dependency.
