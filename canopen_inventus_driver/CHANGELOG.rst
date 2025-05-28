@@ -2,8 +2,8 @@
 Changelog for package canopen_inventus_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.1.3 (2025-05-28)
+------------------
 * Debug logging
 * Contributors: Luis Camero
 
