@@ -56,7 +56,7 @@ bool Battery::readSDO(COIndex index)
     }
     catch (std::exception & e)
     {
-      RCLCPP_ERROR(logger_, e.what());
+      RCLCPP_DEBUG(logger_, e.what());
       clearAvailable(index);
       return false;
     }
@@ -84,13 +84,13 @@ bool Battery::readSDO(COIndex index)
           setData<uint32_t>(index, data.data_);
           break;
         default:
-          RCLCPP_ERROR(logger_, "readSDO: type not known.");
+          RCLCPP_DEBUG(logger_, "readSDO: type not known.");
           return false;
       }
     }
     catch (std::exception & e)
     {
-      RCLCPP_ERROR(logger_, e.what());
+      RCLCPP_DEBUG(logger_, e.what());
       clearAvailable(index);
       return false;
     }
@@ -132,7 +132,7 @@ bool Battery::readPDO(COIndex index)
   }
   catch (std::exception & e)
   {
-    RCLCPP_ERROR(logger_, e.what());
+    RCLCPP_DEBUG(logger_, e.what());
     clearAvailable(index);
     return false;
   }
