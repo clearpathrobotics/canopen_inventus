@@ -204,6 +204,16 @@ void NodeCanopenInventusDriver<rclcpp::Node>::configure(bool called_from_base)
     RCLCPP_WARN(this->node_->get_logger(), "Publish loop timer period 'publish_ms' not set, defaulting to 1000 ms");
     publish_ms_ = 1000;
   }
+  try
+  {
+    enable_sdo_reads_ = this->config_["enable_sdo_reads"].as<bool>();
+    RCLCPP_INFO(this->node_->get_logger(), "Enable SDO reads set to %d", enable_sdo_reads_);
+  }
+  catch(...)
+  {
+    RCLCPP_WARN(this->node_->get_logger(), "Enable SDO reads boolean not set, defaulting to false");
+    enable_sdo_reads_ = false;
+  }
   // Create extra publishers for virtual battery
   if (is_master_)
   {
@@ -255,6 +265,16 @@ void NodeCanopenInventusDriver<rclcpp_lifecycle::LifecycleNode>::configure(bool 
   {
     RCLCPP_WARN(this->node_->get_logger(), "Publish loop timer period 'publish_ms' not set, defaulting to 1000 ms");
     publish_ms_ = 1000;
+  }
+  try
+  {
+    enable_sdo_reads_ = this->config_["enable_sdo_reads"].as<bool>();
+    RCLCPP_INFO(this->node_->get_logger(), "Enable SDO reads set to %d", enable_sdo_reads_);
+  }
+  catch(...)
+  {
+    RCLCPP_WARN(this->node_->get_logger(), "Enable SDO reads boolean not set, defaulting to false");
+    enable_sdo_reads_ = false;
   }
   // Create extra publishers for virtual battery
   if (is_master_)
@@ -337,7 +357,10 @@ void NodeCanopenInventusDriver<NODETYPE>::poll_timer_callback()
       return;
     }
     // SDO Read
-    battery_->readAllSDO();
+    if(enable_sdo_reads_)
+    {
+      battery_->readAllSDO();
+    }
 
     // PDO Read
     if(is_master_)

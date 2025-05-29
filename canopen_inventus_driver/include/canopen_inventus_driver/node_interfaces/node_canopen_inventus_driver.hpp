@@ -81,6 +81,7 @@ protected:
    void publish_timer_callback();
 
    bool is_master_;
+   bool enable_sdo_reads_;
    std::string location_;
    uint32_t publish_ms_;
    int delay_count_;
