@@ -837,7 +837,29 @@ double Battery::getScaledDouble(COIndex index, double factor)
   {
     value = double(getData<uint32_t>(index));
   }
-  return value * factor;
+
+  // Scale factor
+  value *= factor;
+
+  // Round factor
+  int round_factor = 10;
+  if (factor < 1.0)
+  {
+    if (factor >= 0.1)
+    {
+      round_factor = 10;
+    }
+    else if (factor >= 0.01)
+    {
+      round_factor = 100;
+    }
+    else
+    {
+      round_factor = 1000;
+    }
+  }
+  value = std::round(value * round_factor) / round_factor;
+  return value;
 }
 
 /**
