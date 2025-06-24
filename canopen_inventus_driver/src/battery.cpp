@@ -46,11 +46,10 @@ bool Battery::readSDO(COIndex index)
   // Strings use typed read.
   if (index.type_ == CO_DEFTYPE_VISIBLE_STRING)
   {
-    auto f = this->driver_->template async_sdo_read_typed<std::string>(index.index_, index.subindex_);
-    f.wait();
-
     try
     {
+      auto f = this->driver_->template async_sdo_read_typed<std::string>(index.index_, index.subindex_);
+      f.wait();
       std::string data = f.get();
       setStringData(index, data);
     }
