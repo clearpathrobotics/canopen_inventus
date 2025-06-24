@@ -2,6 +2,9 @@
 Changelog for package canopen_inventus_interfaces
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+
 0.1.3 (2025-05-28)
 ------------------
 

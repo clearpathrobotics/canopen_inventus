@@ -2,6 +2,11 @@
 Changelog for package canopen_inventus_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Handle exceptions of async_sdo_read_typed
+* Contributors: Luis Camero
+
 0.1.3 (2025-05-28)
 ------------------
 * Debug logging
